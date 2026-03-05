@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/F3dosik/Hofermart/internal/logger"
@@ -126,13 +128,11 @@ func resolveDuration(envVal, flagVal time.Duration) time.Duration {
 }
 
 func (c *Config) Validate() error {
-	host, port, err := net.SplitHostPort(c.ServiceAddress)
-	if err != nil || host == "" || port == "" {
+	if !validateAddress(c.ServiceAddress) {
 		return fmt.Errorf("invalid service address")
 	}
 
-	host, port, err = net.SplitHostPort(c.AccrualAddress)
-	if err != nil || host == "" || port == "" {
+	if !validateAddress(c.AccrualAddress) {
 		return fmt.Errorf("invalid accrual address")
 	}
 
@@ -155,4 +155,14 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func validateAddress(addr string) bool {
+	if strings.Contains(addr, "://") {
+		u, err := url.Parse(addr)
+		return err == nil && u.Host != ""
+	}
+
+	host, port, err := net.SplitHostPort(addr)
+	return err == nil && host != "" && port != ""
 }
