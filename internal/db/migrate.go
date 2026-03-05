@@ -10,7 +10,6 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"go.uber.org/zap"
@@ -27,7 +26,7 @@ func RunMigrations(dsn string, logger *zap.SugaredLogger) error {
 
 	m, err := migrate.NewWithSourceInstance("iofs", src, dsn)
 	if err != nil {
-		return fmt.Errorf("create migrate: %w", err)
+		return fmt.Errorf("create migrate (dsn = %s): %w", dsn, err)
 	}
 
 	defer func() {

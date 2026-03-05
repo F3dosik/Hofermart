@@ -19,6 +19,7 @@ const (
 	defaultWorkerCount    = 3
 	defaultPollInterval   = 2 * time.Second
 	defaultMaxDelay       = 5 * time.Minute
+	defaultJWTSecret      = "secret"
 )
 
 type Config struct {
@@ -36,8 +37,7 @@ func LoadConfig() (*Config, error) {
 	envConf := parseEnvConfig()
 	flagConf := parseFlagConfig()
 
-	var config *Config
-	config = mergeConfigs(envConf, flagConf)
+	config := mergeConfigs(envConf, flagConf)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func mergeConfigs(envConfig *envConfig, flagConfig *flagConfig) *Config {
 	config.DatabaseURI = resolveString(envConfig.DatabaseURI, flagConfig.DatabaseURI)
 	config.AccrualAddress = resolveString(envConfig.AccrualAddress, flagConfig.AccrualAddress)
 	config.LogLevel = resolveString(envConfig.LogLevel, flagConfig.LogLevel)
-	config.JWTSecret = envConfig.JWTSecret
+	config.JWTSecret = defaultJWTSecret
 	config.WorkerCount = resolveInt(envConfig.WorkerCount, flagConfig.WorkerCount)
 	config.PollInterval = resolveDuration(envConfig.PollInterval, flagConfig.PollInterval)
 	config.MaxDelay = resolveDuration(envConfig.MaxDelay, flagConfig.MaxDelay)
