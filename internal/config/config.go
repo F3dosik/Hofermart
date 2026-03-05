@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 
 	"github.com/F3dosik/Hofermart/internal/logger"
 	"github.com/caarlos0/env/v6"
@@ -12,8 +13,12 @@ import (
 
 const (
 	defaultServiceAddress = "localhost:8081"
+	defaultDatabaseURI    = "postgresql://gophermart:gophermart@localhost:5432/gophermart?sslmode=disable"
 	defaultAccrualAddress = "localhost:8080"
 	defaultLogLevel       = string(logger.ModeDevelopment)
+	defaultWorkerCount    = 3
+	defaultPollInterval   = 2 * time.Second
+	defaultMaxDelay       = 5 * time.Minute
 )
 
 type Config struct {
@@ -21,6 +26,10 @@ type Config struct {
 	DatabaseURI    string
 	AccrualAddress string
 	LogLevel       string
+	JWTSecret      string
+	WorkerCount    int
+	PollInterval   time.Duration
+	MaxDelay       time.Duration
 }
 
 func LoadConfig() (*Config, error) {
@@ -36,10 +45,14 @@ func LoadConfig() (*Config, error) {
 }
 
 type envConfig struct {
-	ServiceAddress string `env:"RUN_ADDRESS"`
-	DatabaseURI    string `env:"DATABASE_URI"`
-	AccrualAddress string `env:"ACCRUAL_SYSTEM_ADDRESS"`
-	LogLevel       string `env:"LOG_LEVEL"`
+	ServiceAddress string        `env:"RUN_ADDRESS"`
+	DatabaseURI    string        `env:"DATABASE_URI"`
+	AccrualAddress string        `env:"ACCRUAL_SYSTEM_ADDRESS"`
+	LogLevel       string        `env:"LOG_LEVEL"`
+	JWTSecret      string        `env:"JWT_SECRET"`
+	WorkerCount    int           `env:"WORKER_COUNT"`
+	PollInterval   time.Duration `env:"POLL_INTERVAL"`
+	MaxDelay       time.Duration `env:"MAX_DELAY"`
 }
 
 func parseEnvConfig() *envConfig {
@@ -57,15 +70,21 @@ type flagConfig struct {
 	DatabaseURI    string
 	AccrualAddress string
 	LogLevel       string
+	WorkerCount    int
+	PollInterval   time.Duration
+	MaxDelay       time.Duration
 }
 
 func parseFlagConfig() *flagConfig {
 	var config flagConfig
 
 	flag.StringVar(&config.ServiceAddress, "a", defaultServiceAddress, "service launch address and port")
-	flag.StringVar(&config.DatabaseURI, "d", "", "database connection address")
+	flag.StringVar(&config.DatabaseURI, "d", defaultDatabaseURI, "database connection address")
 	flag.StringVar(&config.AccrualAddress, "r", defaultAccrualAddress, "address of the accrual calculation system")
 	flag.StringVar(&config.LogLevel, "l", defaultLogLevel, "logging levels")
+	flag.IntVar(&config.WorkerCount, "worker-count", defaultWorkerCount, "number of workers for accrual polling")
+	flag.DurationVar(&config.PollInterval, "poll-interval", defaultPollInterval, "base interval between accrual polling attempts")
+	flag.DurationVar(&config.MaxDelay, "max-delay", defaultMaxDelay, "maximum delay between accrual polling attempts")
 
 	flag.Parse()
 
@@ -78,11 +97,29 @@ func mergeConfigs(envConfig *envConfig, flagConfig *flagConfig) *Config {
 	config.DatabaseURI = resolveString(envConfig.DatabaseURI, flagConfig.DatabaseURI)
 	config.AccrualAddress = resolveString(envConfig.AccrualAddress, flagConfig.AccrualAddress)
 	config.LogLevel = resolveString(envConfig.LogLevel, flagConfig.LogLevel)
+	config.JWTSecret = envConfig.JWTSecret
+	config.WorkerCount = resolveInt(envConfig.WorkerCount, flagConfig.WorkerCount)
+	config.PollInterval = resolveDuration(envConfig.PollInterval, flagConfig.PollInterval)
+	config.MaxDelay = resolveDuration(envConfig.MaxDelay, flagConfig.MaxDelay)
 	return &config
 }
 
 func resolveString(envVal, flagVal string) string {
 	if envVal != "" {
+		return envVal
+	}
+	return flagVal
+}
+
+func resolveInt(envVal, flagVal int) int {
+	if envVal != 0 {
+		return envVal
+	}
+	return flagVal
+}
+
+func resolveDuration(envVal, flagVal time.Duration) time.Duration {
+	if envVal != 0 {
 		return envVal
 	}
 	return flagVal
@@ -101,6 +138,14 @@ func (c *Config) Validate() error {
 
 	if c.DatabaseURI == "" {
 		return fmt.Errorf("database address can't be empty")
+	}
+
+	if c.JWTSecret == "" {
+		return fmt.Errorf("JWT secret can't be empty")
+	}
+
+	if c.WorkerCount < 0 {
+		return fmt.Errorf("worker count can't be less than zero")
 	}
 
 	switch c.LogLevel {

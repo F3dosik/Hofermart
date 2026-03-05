@@ -18,14 +18,10 @@ func NewLogger(mode Mode) (*zap.Logger, *zap.SugaredLogger) {
 	switch mode {
 	case ModeProduction:
 		cfg = zap.NewProductionConfig()
-		cfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-		cfg.OutputPaths = []string{"stdout"}
-		cfg.ErrorOutputPaths = []string{"stderr"}
 	case ModeDevelopment:
 		fallthrough
 	default:
 		cfg = zap.NewDevelopmentConfig()
-		cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 		cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	}
 

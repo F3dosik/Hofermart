@@ -6,25 +6,21 @@ import (
 	"time"
 
 	"github.com/F3dosik/Hofermart/internal/config"
-	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
 
 type Server struct {
-	config *config.Config
-	router chi.Router
-	logger *zap.SugaredLogger
+	config  *config.Config
+	handler http.Handler
+	logger  *zap.SugaredLogger
 }
 
-func NewServer(cfg *config.Config, logger *zap.SugaredLogger) *Server {
-	r := chi.NewRouter()
-	server := &Server{
-		config: cfg,
-		router: r,
-		logger: logger,
+func New(cfg *config.Config, handler http.Handler, logger *zap.SugaredLogger) *Server {
+	return &Server{
+		config:  cfg,
+		handler: handler,
+		logger:  logger,
 	}
-
-	return server
 }
 
 func (s *Server) Run(ctx context.Context) {
@@ -37,7 +33,7 @@ func (s *Server) Run(ctx context.Context) {
 
 	srv := &http.Server{
 		Addr:    s.config.ServiceAddress,
-		Handler: s.router,
+		Handler: s.handler,
 	}
 
 	go func() {
@@ -45,6 +41,7 @@ func (s *Server) Run(ctx context.Context) {
 			s.logger.Fatalw("server failed", "error", err)
 		}
 	}()
+
 	<-ctx.Done()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
