@@ -12,29 +12,34 @@ import (
 
 func (r *postgresRepository) UploadOrder(ctx context.Context, number string, userID uuid.UUID) error {
 	var existingUserID uuid.UUID
-	var xmax uint64
+	var inserted bool
 	err := db.WithRetry(ctx, func() error {
 		return r.pool.QueryRow(ctx, `
-		INSERT INTO orders (user_id, number)
-		VALUES ($1, $2)
-		ON CONFLICT (number) DO UPDATE SET number = EXCLUDED.number
-		RETURNING user_id, xmax::bigint
-	`, userID, number).Scan(&existingUserID, &xmax)
+			WITH ins AS (
+				INSERT INTO orders (user_id, number)
+				VALUES ($1, $2)
+				ON CONFLICT (number) DO NOTHING
+				RETURNING user_id
+			)
+			SELECT user_id, true AS inserted FROM ins
+			UNION ALL 
+			SELECT user_id, false FROM orders WHERE number = $2
+			LIMIT 1
+		`, userID, number).Scan(&existingUserID, &inserted)
 	})
 
 	if err != nil {
 		return fmt.Errorf("upload order: %w", err)
 	}
-	// xmax == 0 при INSERT
-	if xmax > 0 {
-		if existingUserID != userID {
-			return ErrOrderAlreadyExistForAnotherUser
-		}
-		return ErrOrderAlreadyExist
+
+	if inserted {
+		return nil
 	}
 
-	return nil
-
+	if existingUserID != userID {
+		return ErrOrderAlreadyExistForAnotherUser
+	}
+	return ErrOrderAlreadyExist
 }
 
 func (r *postgresRepository) GetOrders(ctx context.Context, userID uuid.UUID) ([]*model.Order, error) {
