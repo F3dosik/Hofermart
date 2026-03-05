@@ -18,7 +18,7 @@ func (r *postgresRepository) UploadOrder(ctx context.Context, number string, use
 		INSERT INTO orders (user_id, number)
 		VALUES ($1, $2)
 		ON CONFLICT (number) DO UPDATE SET number = EXCLUDED.number
-		RETURNING user_id, xmax
+		RETURNING user_id, xmax::bigint
 	`, userID, number).Scan(&existingUserID, &xmax)
 	})
 
